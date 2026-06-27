@@ -120,7 +120,44 @@ scores spread across all three bands instead of collapsing to a binary:
 
 Clear AI (0.712) vs clear human (0.302) are **0.41 apart** — meaningfully
 different. *The formal-human case lands at *low-confidence* `likely_ai` — a known
-blind spot (see Edge cases) handled honestly via low confidence + the appeal path.
+blind spot (see Known limitations) handled honestly via low confidence + the
+appeal path.
+
+### Two worked examples (different confidence, real scores)
+
+**Higher-confidence classification** — a casual restaurant review:
+> *"ok so i finally tried that new ramen place downtown and honestly? underwhelming. the broth was fine but they put WAY too much sodium…"*
+
+| llm | stylo | combined `p_ai` | verdict | **confidence** |
+|-----|-------|------|---------|----------------|
+| 0.20 | 0.35 | 0.26 | `likely_human` | **0.48** |
+
+Both signals agree it's human (informal tone, high sentence-length variance →
+stdev 7.5), so confidence is near the top of what blending produces.
+
+**Lower-confidence classification** — a short, lightly-edited AI paragraph:
+> *"I have been thinking a lot about remote work lately. There are genuine tradeoffs. Studies show productivity varies widely."*
+
+| llm | stylo | combined `p_ai` | verdict | **confidence** |
+|-----|-------|------|---------|----------------|
+| 0.40 | abstained | 0.40 | `uncertain` | **0.20** |
+
+The text is under 40 words so stylometry abstains, and the LLM sits near the
+fence — the system reports `uncertain` at low confidence rather than guessing.
+
+The **0.48 vs 0.20** gap is the proof the score is meaningful, not a constant.
+
+### What I'd change before deploying this for real
+- **Calibrate against a labeled dataset.** The confidence is a principled
+  distance-from-fence heuristic, not a calibrated probability; blending also
+  compresses the range (max ~0.6). I'd fit a calibration curve (e.g. Platt
+  scaling) on labeled human/AI text so "80% confident" is empirically true.
+- **Stronger, more weighting-aware ensemble** (perplexity, multiple model
+  judges with a voting scheme) rather than two signals.
+- **Persistent, per-creator rate limiting** (Redis-backed, keyed on
+  authenticated user, not just IP) and **auth** on `/log` / `/appeal`.
+- **Prefer provenance over detection** where possible — cryptographic content
+  credentials (C2PA) are far more reliable than post-hoc statistical guessing.
 
 ---
 
@@ -228,18 +265,65 @@ was filed. Raw JSON for one decision entry:
 
 ---
 
-## Anticipated edge cases (handled honestly)
+## Known limitations & edge cases
 
-1. **Formal human prose (academic/legal):** uniform sentences + low punctuation
-   variety look statistically AI-like, and the LLM also leans AI on dry prose — so
-   it can land at *low-confidence* `likely_ai`. Mitigation: the high `likely_ai`
-   bar, low reported confidence, and the appeal path on every AI label.
-2. **Constrained human poetry (haiku/repetition):** simple vocabulary and
-   repetition push stylometry toward "uniform." Mitigation: short-text abstention
-   + the disagreement penalty steer toward `uncertain`.
-3. **Lightly human-edited AI:** signals disagree → penalty pulls to `uncertain`,
-   the honest answer.
-4. **Very short text (<40 words):** stylometry abstains, confidence capped at 0.70.
+**The case it would most likely get wrong: formal human prose** (academic
+abstracts, legal clauses, corporate writing). This is a direct consequence of
+*both* signal properties, not bad luck: the stylometric signal rewards
+*uniformity* (low sentence-length variance, sparse punctuation variety) as an
+AI tell — but careful formal human writing is *also* uniform. And the LLM signal
+independently leans "AI" on dry, hedge-heavy prose because that's what a lot of
+its AI training examples look like. So both signals fail in the *same* direction,
+the disagreement penalty (which only fires when signals diverge) never triggers,
+and a real human can land at low-confidence `likely_ai`. This is exactly the
+asymmetric error a writing platform cares about, which is why the `likely_ai` bar
+is high, the confidence is reported honestly low, and every AI label carries the
+appeal path.
+
+Other known edge cases:
+- **Constrained human poetry (haiku/repetition):** simple vocabulary + repetition
+  push stylometry toward "uniform." Short-text abstention + the disagreement
+  penalty steer toward `uncertain`.
+- **Lightly human-edited AI:** signals disagree → penalty pulls to `uncertain`,
+  the honest answer.
+- **Very short text (<40 words):** stylometry abstains, confidence capped at 0.70.
+
+---
+
+## Spec reflection
+
+- **How the spec guided the build:** writing the three label variants *verbatim in
+  planning.md before any code* forced the confidence model to exist first. Because
+  I'd already committed to an `uncertain` label, I had to design a *three-band*
+  scorer (with a disagreement penalty feeding the middle band) instead of a binary
+  threshold — the spec made the "communicate uncertainty" requirement structural,
+  not an afterthought.
+- **Where the implementation diverged:** planning.md §4 originally defined reported
+  confidence as `1 − p_ai`. In implementation I switched to `|p_ai − 0.5| × 2`,
+  because `1 − p_ai` gives a *high* number to a confident-human result and a *low*
+  number to a confident-AI result — it measures "how human," not "how sure." The
+  distance-from-fence formula is symmetric and actually means "confidence in the
+  verdict," which is what the labels promise. I updated planning.md to match.
+
+---
+
+## AI usage
+
+I used Claude (via Claude Code) as the implementation tool, driven by sections of
+planning.md. Two specific instances:
+
+1. **Stylometric signal + scoring (M4).** I directed it to generate
+   `signal_stylometric` and `combine()` from the §3/§4 spec. It produced working
+   code, but the initial type-token-ratio mapping barely discriminated on short
+   text (every sample scored ~0.87 raw TTR). I caught this by printing per-metric
+   sub-scores on the labeled corpus, re-centered the TTR mapping, and documented
+   TTR as the weakest sub-metric rather than pretending it was load-bearing —
+   burstiness and punctuation do most of the work.
+2. **Rate limiting (M5).** I directed it to add Flask-Limiter at `10/min;100/day`.
+   The first test showed only 7 requests passing before `429`, not 10. I traced it
+   to Flask's debug **reloader** running a second process that split the in-memory
+   counter, and overrode the generated `app.run(debug=True)` with
+   `use_reloader=False` so the limiter counts correctly (verified: 10×200, 2×429).
 
 ---
 
