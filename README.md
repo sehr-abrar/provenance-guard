@@ -237,12 +237,15 @@ label shown, and (for appeals) the creator's reasoning.
 
 ### Sample (`GET /log`) — 4 entries incl. an appeal
 
-| id | entry_type | content_id | attribution   | status        | llm | stylo | combined | reasoning |
-|----|------------|------------|---------------|---------------|-----|-------|----------|-----------|
-| 4  | appeal     | fe2aa20e   | likely_ai     | under_review  | 0.8 | 0.579 | 0.712    | "I wrote this myself from personal experience…" |
-| 3  | decision   | 81507fcd   | uncertain     | classified    | 0.4 | 0.557 | 0.400    | — |
-| 2  | decision   | c641177f   | likely_human  | classified    | 0.2 | 0.351 | 0.260    | — |
-| 1  | decision   | fe2aa20e   | likely_ai     | under_review  | 0.8 | 0.579 | 0.712    | — |
+Columns show, per entry: **timestamp**, **attribution**, **confidence**, both
+individual signal scores (llm / stylo), the combined score, and status.
+
+| id | timestamp (UTC)            | type     | content_id | attribution   | confidence | llm / stylo / combined | status        | reasoning |
+|----|----------------------------|----------|------------|---------------|------------|------------------------|---------------|-----------|
+| 4  | 2026-06-27T22:39:53.841Z   | appeal   | fe2aa20e   | likely_ai     | 0.423      | 0.8 / 0.579 / 0.712    | under_review  | "I wrote this myself from personal experience…" |
+| 3  | 2026-06-27T22:39:53.814Z   | decision | 81507fcd   | uncertain     | 0.200      | 0.4 / 0.557 / 0.400    | classified    | — |
+| 2  | 2026-06-27T22:39:53.363Z   | decision | c641177f   | likely_human  | 0.479      | 0.2 / 0.351 / 0.260    | classified    | — |
+| 1  | 2026-06-27T22:39:53.109Z   | decision | fe2aa20e   | likely_ai     | 0.423      | 0.8 / 0.579 / 0.712    | under_review  | — |
 
 Note id 1 (the original decision) flipped to `under_review` after the appeal (id 4)
 was filed. Raw JSON for one decision entry:
