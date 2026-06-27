@@ -168,11 +168,16 @@ p_ai = 0.6 * p_ai_llm  +  0.4 * p_ai_stylo
 `p_ai` is the probability of AI. We map it to a verdict and a *confidence in that
 verdict*:
 
-| `p_ai` range      | verdict        | reported confidence              |
+Reported `confidence = |p_ai − 0.5| × 2` — "how sure we are in the verdict",
+rescaled to `[0,1]`. It is high for a clear human OR a clear AI result, and near
+zero in the uncertain band by construction. When only one signal is usable
+(abstention) it is capped at 0.70.
+
+| `p_ai` range      | verdict        | reported confidence `\|p_ai−0.5\|×2` |
 |-------------------|----------------|----------------------------------|
-| `0.00 – 0.34`     | `likely_human` | `1 − p_ai` (distance from 0.5, rescaled) |
-| `0.34 – 0.66`     | `uncertain`    | low by construction (near 0.5)   |
-| `0.66 – 1.00`     | `likely_ai`    | `p_ai` (rescaled)                |
+| `0.00 – 0.34`     | `likely_human` | high (e.g. p_ai 0.20 → 0.60)     |
+| `0.34 – 0.66`     | `uncertain`    | low by construction (≤ ~0.32)    |
+| `0.66 – 1.00`     | `likely_ai`    | high (e.g. p_ai 0.80 → 0.60)     |
 
 So **0.6 means**: the system leans one way but is not far from the boundary — it
 falls in or near the `uncertain` band and produces the hedged label, *not* a

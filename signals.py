@@ -8,6 +8,7 @@ in M4.
 import json
 import os
 import re
+import statistics
 
 from dotenv import load_dotenv
 from groq import Groq
@@ -89,6 +90,80 @@ def signal_llm(text):
             "rationale": f"signal abstained: {e}",
             "abstained": True,
         }
+
+
+# ---------------------------------------------------------------------------
+# Signal 2 — Stylometric heuristics (pure Python, deterministic).
+# Measures structural REGULARITY. Each sub-metric maps to a "looks-AI" score in
+# [0,1] (1 = looks AI); the signal score is their mean. AI prose is uniform;
+# human prose is bursty and irregular.
+# ---------------------------------------------------------------------------
+
+MIN_WORDS_FOR_STYLO = 40  # below this, variance/TTR are statistically unreliable
+
+_WORD_RE = re.compile(r"[A-Za-z']+")
+_RICH_PUNCT = set(";:—–-()\"'!?…")
+
+
+def _clamp(x, lo=0.0, hi=1.0):
+    return max(lo, min(hi, x))
+
+
+def _sentences(text):
+    parts = re.split(r"[.!?]+", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def signal_stylometric(text):
+    """Return Signal 2's assessment.
+
+    Output: {"p_ai": float in [0,1], "metrics": {...}, "abstained": bool}
+    Abstains (down-weights) on very short text where the statistics are noise.
+    """
+    words = _WORD_RE.findall(text)
+    n_words = len(words)
+    abstained = n_words < MIN_WORDS_FOR_STYLO
+
+    # --- Metric A: burstiness (sentence-length variance) -------------------
+    # Human writing mixes short and long sentences; AI keeps them uniform.
+    # Low variance -> looks AI.
+    sents = _sentences(text)
+    sent_lens = [len(_WORD_RE.findall(s)) for s in sents]
+    if len(sent_lens) >= 2:
+        stdev = statistics.pstdev(sent_lens)
+        ai_burst = _clamp(1.0 - stdev / 8.0)
+    else:
+        stdev = 0.0
+        ai_burst = 0.5  # can't tell from one sentence
+
+    # --- Metric B: lexical diversity (type-token ratio) --------------------
+    # Computed on a capped 100-word window to remove length bias. AI tends to a
+    # moderate, "safe" diversity band; humans deviate (terse-distinctive = high,
+    # repetitive-casual = low). Closeness to the AI band -> looks AI.
+    window = [w.lower() for w in words[:100]]
+    ttr = len(set(window)) / len(window) if window else 0.0
+    ai_ttr = _clamp(1.0 - abs(ttr - 0.72) / 0.28)
+
+    # --- Metric C: punctuation richness ------------------------------------
+    # Expressive human writing reaches for varied punctuation (—, ;, ?, ...);
+    # AI/formal prose leans on commas and periods. Low variety -> looks AI.
+    distinct_rich = len({c for c in text if c in _RICH_PUNCT})
+    ai_punct = _clamp(1.0 - distinct_rich / 4.0)
+
+    p_ai = round(statistics.mean([ai_burst, ai_ttr, ai_punct]), 3)
+    return {
+        "p_ai": p_ai,
+        "abstained": abstained,
+        "metrics": {
+            "n_words": n_words,
+            "sentence_len_stdev": round(stdev, 2),
+            "type_token_ratio": round(ttr, 3),
+            "distinct_punct": distinct_rich,
+            "ai_burst": round(ai_burst, 3),
+            "ai_ttr": round(ai_ttr, 3),
+            "ai_punct": round(ai_punct, 3),
+        },
+    }
 
 
 if __name__ == "__main__":

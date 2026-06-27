@@ -10,19 +10,11 @@ import uuid
 from flask import Flask, jsonify, request
 
 import audit
-from signals import signal_llm
+from scoring import combine
+from signals import signal_llm, signal_stylometric
 
 app = Flask(__name__)
 audit.init_db()
-
-
-def _provisional_attribution(p_ai):
-    """Three-band verdict from a single signal (placeholder until M4 scoring)."""
-    if p_ai >= 0.66:
-        return "likely_ai"
-    if p_ai <= 0.34:
-        return "likely_human"
-    return "uncertain"
 
 
 @app.get("/health")
@@ -43,33 +35,43 @@ def submit():
 
     content_id = str(uuid.uuid4())
 
-    # Signal 1 — LLM classifier.
-    llm = signal_llm(text)
-    llm_score = llm["p_ai"]
+    # Multi-signal detection pipeline.
+    llm = signal_llm(text)                 # Signal 1 — semantic (LLM)
+    stylo = signal_stylometric(text)       # Signal 2 — structural (stylometry)
+    score = combine(llm, stylo)            # calibrated confidence scoring (M4)
 
-    # Provisional verdict + PLACEHOLDER confidence/label (real logic in M4/M5).
-    attribution = _provisional_attribution(llm_score)
-    confidence = llm_score  # placeholder: not yet calibrated
+    attribution = score["verdict"]
+    confidence = score["confidence"]
     label = "PLACEHOLDER — calibrated label arrives in M5"
 
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id,
         attribution=attribution,
-        confidence=round(confidence, 3),
-        llm_score=llm_score,
+        confidence=confidence,
+        llm_score=llm["p_ai"],
+        stylometric_score=stylo["p_ai"],
+        combined_score=score["p_ai"],
         status="classified",
         label=label,
-        details={"llm_rationale": llm["rationale"], "llm_abstained": llm["abstained"]},
+        details={
+            "llm_rationale": llm["rationale"],
+            "llm_abstained": llm["abstained"],
+            "stylometric_metrics": stylo["metrics"],
+            "stylometric_abstained": stylo["abstained"],
+            "disagreement": score["disagreement"],
+            "one_signal_only": score["one_signal_only"],
+        },
     )
 
     return jsonify({
         "content_id": content_id,
         "creator_id": creator_id,
         "attribution": attribution,
-        "confidence": round(confidence, 3),
+        "confidence": confidence,
+        "p_ai": score["p_ai"],
         "label": label,
-        "signals": {"llm": llm},
+        "signals": {"llm": llm, "stylometric": stylo},
         "status": "classified",
     })
 
