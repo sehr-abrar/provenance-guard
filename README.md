@@ -217,7 +217,8 @@ Read endpoints (`/log`, `/appeals`) are unthrottled (cheap, documentation-facing
 ```
 request 1  -> 200
 ...
-request 10 -> 200
+request 9 -> 200
+request 10 -> 429
 request 11 -> 429
 request 12 -> 429
 ```
