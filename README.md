@@ -340,3 +340,9 @@ planning.md. Two specific instances:
 | `labels.py`   | Transparency-label generation |
 | `audit.py`    | SQLite audit log (decisions + appeals) |
 | `planning.md` | Full spec, architecture diagrams, design rationale |
+
+--- 
+
+## Demo Video
+
+Here you can watch the [demo video](https://youtu.be/858mIONSx7U)!
