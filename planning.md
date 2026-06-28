@@ -58,14 +58,14 @@ appeal queue (`GET /log` / `GET /appeals`) and decides.
             ┌────────────────┐  ┌──────────────────┐
             │ Signal 1: LLM  │  │ Signal 2: Stylo- │
             │ (Groq)         │  │ metric heuristics│
-            └───────┬────────┘  └────────┬─────────┘
+            └───────┬────────┘  └─────────┬────────┘
             p_ai_llm│ (0–1)     p_ai_stylo│ (0–1)
                     └─────────┬───────────┘
                               ▼
                    ┌──────────────────────┐
-                   │  Confidence Scorer    │  combined score (0–1)
-                   │  (weighted blend +    │  + verdict bucket
-                   │   agreement penalty)  │
+                   │  Confidence Scorer   │  combined score (0–1)
+                   │  (weighted blend +   │  + verdict bucket
+                   │   agreement penalty) │
                    └──────────┬───────────┘
                        score+ │ verdict
                               ▼
@@ -74,14 +74,14 @@ appeal queue (`GET /log` / `GET /appeals`) and decides.
                    └──────────┬───────────┘
                               ▼
                    ┌──────────────────────┐
-                   │  Audit Log (SQLite)   │  persist decision + signals
+                   │  Audit Log (SQLite)  │  persist decision + signals
                    └──────────┬───────────┘
                               ▼
                    JSON response: { submission_id, verdict,
                                     confidence, label, signals }
 ```
 
-### Appeal flow
+### Appeal Flow
 ```
  submission_id + reasoning      ┌─────────────────────┐
  POST /appeal  ───────────────▶ │ Lookup original     │
@@ -151,7 +151,7 @@ so we decide what it should *mean* before computing it. Our reported
 confidence; the *uncertain* band is reserved for genuine disagreement or
 near-boundary scores.
 
-### Combining the signals → `p_ai` (probability of AI)
+### Combining the Signals → `p_ai` (probability of AI)
 ```
 p_ai = 0.6 * p_ai_llm  +  0.4 * p_ai_stylo
 ```
@@ -164,7 +164,7 @@ p_ai = 0.6 * p_ai_llm  +  0.4 * p_ai_stylo
   (<40 words), we fall back to the available signal and cap reported confidence
   at 0.7 so we never claim high certainty on one leg.
 
-### Verdict buckets and the reported confidence
+### Verdict Buckets and the Reported Confidence
 `p_ai` is the probability of AI. We map it to a verdict and a *confidence in that
 verdict*:
 
@@ -325,7 +325,7 @@ generate, and how I verify before moving on.
 
 ---
 
-## 10. Checkpoint status
+## 10. Checkpoint Status
 
 - ✅ Architecture narrative + diagram (both flows, labeled arrows).
 - ✅ Two distinct signals chosen, each with measured property + blind spot.
