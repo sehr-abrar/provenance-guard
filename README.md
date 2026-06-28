@@ -11,7 +11,7 @@ canonical record of what was built and how to run it.
 
 ---
 
-## Quick start
+## Quick Start
 
 ```bash
 python -m venv .venv
@@ -25,7 +25,7 @@ python app.py        # serves on http://127.0.0.1:5000
 
 ---
 
-## Architecture (overview)
+## Architecture (Overview)
 
 ```
 POST /submit ─▶ rate limiter ─▶ Signal 1 (LLM) ─┐
@@ -38,7 +38,7 @@ POST /appeal ─▶ lookup decision ─▶ status: under_review ─▶ audit log
 Full diagrams (both flows, labeled arrows) are in
 [planning.md → Architecture](planning.md#2-architecture-diagram).
 
-### API endpoints
+### API Endpoints
 
 | Endpoint   | Method | Body                                          | Returns |
 |------------|--------|-----------------------------------------------|---------|
@@ -52,12 +52,12 @@ Errors: `400` (missing/empty fields), `404` (unknown `content_id`), `429` (rate 
 
 ---
 
-## Detection signals (multi-signal pipeline)
+## Detection Signals (Multi-signal Pipeline)
 
 Two **genuinely independent** signals — one semantic, one structural — so the
 combination is more informative than either alone.
 
-### Signal 1 — LLM classifier (Groq `llama-3.3-70b-versatile`)
+### Signal 1 — LLM Classifier (Groq `llama-3.3-70b-versatile`)
 - **Captures:** holistic semantic + stylistic "feel" — whether the writing reads
   human or machine-generated (hedging, generic phrasing, predictability,
   idiosyncrasy).
@@ -67,7 +67,7 @@ combination is more informative than either alone.
 - **Blind spot:** can be coaxed to call AI text "human," is non-deterministic, and
   has no ground truth — it's an AI guessing about AI.
 
-### Signal 2 — Stylometric heuristics (pure Python, deterministic)
+### Signal 2 — Stylometric Heuristics (pure Python, deterministic)
 Three sub-metrics, each mapped to a "looks-AI" score in `[0,1]`, then averaged:
 - **Burstiness** (sentence-length variance): humans mix short/long sentences; AI
   is uniform. Low variance → looks AI.
@@ -82,7 +82,7 @@ Three sub-metrics, each mapped to a "looks-AI" score in `[0,1]`, then averaged:
 
 ---
 
-## Confidence scoring (uncertainty, not a binary)
+## Confidence Scoring (Uncertainty, not a Binary)
 
 The pipeline combines the signals into a **probability of AI (`p_ai`)**, then maps
 that to a verdict and a **confidence in the verdict** — *not* a hard flip at 0.5.
@@ -123,7 +123,7 @@ different. *The formal-human case lands at *low-confidence* `likely_ai` — a kn
 blind spot (see Known limitations) handled honestly via low confidence + the
 appeal path.
 
-### Two worked examples (different confidence, real scores)
+### Two Worked Examples (Different Confidence, Real Scores)
 
 **Higher-confidence classification** — a casual restaurant review:
 > *"ok so i finally tried that new ramen place downtown and honestly? underwhelming. the broth was fine but they put WAY too much sodium…"*
@@ -147,7 +147,7 @@ fence — the system reports `uncertain` at low confidence rather than guessing.
 
 The **0.48 vs 0.20** gap is the proof the score is meaningful, not a constant.
 
-### What I'd change before deploying this for real
+### What I'd Change Before Deploying
 - **Calibrate against a labeled dataset.** The confidence is a principled
   distance-from-fence heuristic, not a calibrated probability; blending also
   compresses the range (max ~0.6). I'd fit a calibration curve (e.g. Platt
@@ -161,7 +161,7 @@ The **0.48 vs 0.20** gap is the proof the score is meaningful, not a constant.
 
 ---
 
-## Transparency label (three variants)
+## Transparency Label (3 Variants)
 
 The submission endpoint returns one of three labels, selected by verdict, with the
 confidence percentage interpolated. **Verbatim text:**
@@ -181,7 +181,7 @@ be harmed.
 
 ---
 
-## Appeals workflow
+## Appeals Workflow
 
 - **Who:** the creator of a submission (holds the `content_id`; a real platform
   would gate by authenticated author).
@@ -201,7 +201,7 @@ curl -s -X POST http://localhost:5000/appeal \
 
 ---
 
-## Rate limiting
+## Rate Limiting
 
 Applied to `POST /submit` (the LLM-cost-bearing endpoint) via Flask-Limiter,
 in-memory storage:
@@ -228,7 +228,7 @@ request 12 -> 429
 
 ---
 
-## Audit log
+## Audit Log
 
 Every decision and appeal is written to a structured SQLite log
 (`provenance.sqlite`, gitignored). Each entry records: timestamp, `content_id`,
@@ -269,7 +269,7 @@ was filed. Raw JSON for one decision entry:
 
 ---
 
-## Known limitations & edge cases
+## Known Limitations & Edge Cases
 
 **The case it would most likely get wrong: formal human prose** (academic
 abstracts, legal clauses, corporate writing). This is a direct consequence of
@@ -294,7 +294,7 @@ Other known edge cases:
 
 ---
 
-## Spec reflection
+## Spec Reflection
 
 - **How the spec guided the build:** writing the three label variants *verbatim in
   planning.md before any code* forced the confidence model to exist first. Because
@@ -311,7 +311,7 @@ Other known edge cases:
 
 ---
 
-## AI usage
+## AI Usage
 
 I used Claude (via Claude Code) as the implementation tool, driven by sections of
 planning.md. Two specific instances:
@@ -331,7 +331,7 @@ planning.md. Two specific instances:
 
 ---
 
-## Project layout
+## Project Layout
 
 | File          | Role |
 |---------------|------|
